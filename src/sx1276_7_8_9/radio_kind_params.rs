@@ -125,6 +125,7 @@ impl Default for OscillatorType {
 }
 
 impl OscillatorType {
+    #[allow(missing_docs)]
     pub fn value(self) -> u8 {
         match self {
             OscillatorType::Tcxo => 0x10,
