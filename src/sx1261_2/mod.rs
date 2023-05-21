@@ -90,10 +90,46 @@ impl PacketParams {
     }
 }
 
+/// Configuration for specific LoRa chip and TCXO control voltage
+pub struct Config {
+    /// SX126x chip variant
+    pub chip_varient: Sx126xVarient,
+    /// TCXO control voltage
+    pub tcxo_ctrl_voltage: TcxoCtrlVoltage,
+}
+
+impl Config {
+    /// Create a new config for a specific LoRa chip
+    pub fn new(chip_varient: Sx126xVarient, tcxo_ctrl_voltage: TcxoCtrlVoltage) -> Self {
+        Self {
+            chip_varient,
+            tcxo_ctrl_voltage,
+        }
+    }
+
+    /// Config for SX1261
+    /// The default TCXO control voltage is 1.7 V
+    pub fn sx1261() -> Self {
+        Self::new(Sx126xVarient::Sx1261, TcxoCtrlVoltage::default())
+    }
+
+    /// Config for SX1262
+    /// The default TCXO control voltage is 1.7 V
+    pub fn sx1262() -> Self {
+        Self::new(Sx126xVarient::Sx1262, TcxoCtrlVoltage::default())
+    }
+
+    /// Config for STM32WL
+    /// The default TCXO control voltage is 1.7 V
+    pub fn stm32wl() -> Self {
+        Self::new(Sx126xVarient::Stm32wl, TcxoCtrlVoltage::default())
+    }
+}
+
 /// Base for the RadioKind implementation for the LoRa chip kind and board type
 pub struct SX1261_2<SPI, IV> {
-    board_type: BoardType,
     intf: SpiInterface<SPI, IV>,
+    config: Config,
 }
 
 impl<SPI, IV> SX1261_2<SPI, IV>
@@ -102,10 +138,9 @@ where
     IV: InterfaceVariant + 'static,
 {
     /// Create an instance of the RadioKind implementation for the LoRa chip kind and board type
-    pub fn new(board_type: BoardType, spi: SPI, mut iv: IV) -> Self {
-        iv.set_board_type(board_type);
+    pub fn new(spi: SPI, iv: IV, config: Config) -> Self {
         let intf = SpiInterface::new(spi, iv);
-        Self { board_type, intf }
+        Self { intf, config }
     }
 
     // Utility functions
@@ -216,8 +251,8 @@ where
     SPI: SpiBus<u8> + 'static,
     IV: InterfaceVariant + 'static,
 {
-    fn get_board_type(&self) -> BoardType {
-        self.board_type
+    fn get_chip_type(&self) -> ChipType {
+        ChipType::Sx126x(self.config.chip_varient)
     }
 
     async fn reset(&mut self, delay: &mut impl DelayUs) -> Result<(), RadioError> {
@@ -235,9 +270,9 @@ where
         Ok(())
     }
 
-    // Use DIO2 to control an RF Switch, depending on the board type.
+    // Use DIO2 to control an RF Switch for the STM32WL.
     async fn init_rf_switch(&mut self) -> Result<(), RadioError> {
-        if self.board_type != BoardType::Stm32wlSx1262 {
+        if self.config.chip_varient == Sx126xVarient::Stm32wl {
             let op_code_and_indicator = [OpCode::SetRFSwitchMode.value(), true as u8];
             self.intf.write(&[&op_code_and_indicator], false).await?;
         }
@@ -293,11 +328,7 @@ where
     }
 
     async fn set_oscillator(&mut self) -> Result<(), RadioError> {
-        let voltage = if self.board_type != BoardType::HeltecWifiLoraV31262 {
-            TcxoCtrlVoltage::Ctrl1V7.value() & 0x07 // voltage used to control the TCXO on/off from DIO3
-        } else {
-            TcxoCtrlVoltage::Ctrl1V8.value() & 0x07
-        };
+        let voltage = self.config.tcxo_ctrl_voltage.value() & 0x07;
         let timeout = BRD_TCXO_WAKEUP_TIME << 6; // duration allowed for TCXO to reach 32MHz
         let op_code_and_tcxo_control = [
             OpCode::SetTCXOMode.value(),
@@ -349,8 +380,7 @@ where
             false => RampTime::Ramp200Us, // for instance, on initialization
         };
 
-        let chip_type: ChipType = self.board_type.into();
-        if chip_type == ChipType::Sx1261 {
+        if self.config.chip_varient == Sx126xVarient::Sx1261 {
             if !(-17..=15).contains(&output_power) {
                 return Err(RadioError::InvalidOutputPower);
             }
@@ -929,7 +959,7 @@ where
     /// If uniformity is needed, perform appropriate software post-processing.
     async fn get_random_number(&mut self) -> Result<u32, RadioError> {
         // The stm32wl often returns 0 on the first random number generation operation.  Documentation for the stm32wl does not recommend LNA register modification.
-        if self.board_type == BoardType::Stm32wlSx1262 {
+        if self.config.chip_varient == Sx126xVarient::Stm32wl {
             return Err(RadioError::RngUnsupported);
         }
         self.set_irq_params(None).await?;

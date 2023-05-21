@@ -12,9 +12,6 @@ use crate::{InterfaceVariant, RadioKind, SpiInterface};
 const LORA_MAC_PUBLIC_SYNCWORD: u8 = 0x34; // corresponds to sx126x 0x3444
 const LORA_MAC_PRIVATE_SYNCWORD: u8 = 0x12; // corresponds to sx126x 0x1424
 
-// TCXO flag
-const TCXO_FOR_OSCILLATOR: u8 = 0x10u8;
-
 // Frequency synthesizer step for frequency calculation (Hz)
 const FREQUENCY_SYNTHESIZER_STEP: f64 = 61.03515625; // FXOSC (32 MHz) * 1000000 (Hz/MHz) / 524288 (2^19)
 
@@ -77,10 +74,52 @@ impl PacketParams {
     }
 }
 
+/// Configuration for specific LoRa chip and oscillator
+pub struct Config {
+    /// SX127x chip variant
+    pub chip_varient: Sx127xVarient,
+    /// Oscillator type
+    pub oscillator: OscillatorType,
+}
+
+impl Config {
+    /// Create a new config for a specific LoRa chip and oscillator
+    pub fn new(chip_varient: Sx127xVarient, oscillator: OscillatorType) -> Self {
+        Self {
+            chip_varient,
+            oscillator,
+        }
+    }
+
+    /// Config for SX1276
+    /// TCXO oscillator is used by default
+    pub fn sx1276() -> Self {
+        Self::new(Sx127xVarient::Sx1276, OscillatorType::default())
+    }
+
+    /// Config for SX1277
+    /// TCXO oscillator is used by default
+    pub fn sx1277() -> Self {
+        Self::new(Sx127xVarient::Sx1277, OscillatorType::default())
+    }
+
+    /// Config for SX1278
+    /// TCXO oscillator is used by default
+    pub fn sx1278() -> Self {
+        Self::new(Sx127xVarient::Sx1278, OscillatorType::default())
+    }
+
+    /// Config for SX1279
+    /// TCXO oscillator is used by default
+    pub fn sx1279() -> Self {
+        Self::new(Sx127xVarient::Sx1279, OscillatorType::default())
+    }
+}
+
 /// Base for the RadioKind implementation for the LoRa chip kind and board type
 pub struct SX1276_7_8_9<SPI, IV> {
-    board_type: BoardType,
     intf: SpiInterface<SPI, IV>,
+    config: Config,
 }
 
 impl<SPI, IV> SX1276_7_8_9<SPI, IV>
@@ -89,10 +128,9 @@ where
     IV: InterfaceVariant + 'static,
 {
     /// Create an instance of the RadioKind implementation for the LoRa chip kind and board type
-    pub fn new(board_type: BoardType, spi: SPI, mut iv: IV) -> Self {
-        iv.set_board_type(board_type);
+    pub fn new(spi: SPI, iv: IV, config: Config) -> Self {
         let intf = SpiInterface::new(spi, iv);
-        Self { board_type, intf }
+        Self { intf, config }
     }
 
     // Utility functions
@@ -130,8 +168,8 @@ where
     SPI: SpiBus<u8> + 'static,
     IV: InterfaceVariant + 'static,
 {
-    fn get_board_type(&self) -> BoardType {
-        self.board_type
+    fn get_chip_type(&self) -> ChipType {
+        ChipType::Sx127x(self.config.chip_varient)
     }
 
     async fn reset(&mut self, delay: &mut impl DelayUs) -> Result<(), RadioError> {
@@ -174,7 +212,8 @@ where
     }
 
     async fn set_oscillator(&mut self) -> Result<(), RadioError> {
-        self.write_register(Register::RegTcxo, TCXO_FOR_OSCILLATOR, false).await
+        self.write_register(Register::RegTcxo, self.config.oscillator.value(), false)
+            .await
     }
 
     async fn set_regulator_mode(&mut self) -> Result<(), RadioError> {

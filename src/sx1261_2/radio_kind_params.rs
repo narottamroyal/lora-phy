@@ -216,6 +216,12 @@ pub enum TcxoCtrlVoltage {
     Ctrl3V3 = 0x07,
 }
 
+impl Default for TcxoCtrlVoltage {
+    fn default() -> Self {
+        TcxoCtrlVoltage::Ctrl1V7
+    }
+}
+
 impl TcxoCtrlVoltage {
     pub fn value(self) -> u8 {
         self as u8

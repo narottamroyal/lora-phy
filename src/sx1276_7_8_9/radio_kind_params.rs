@@ -109,6 +109,30 @@ impl Register {
     }
 }
 
+/// Oscillator type
+#[derive(Clone, Copy)]
+pub enum OscillatorType {
+    /// Temperature compensated crystal oscillator
+    Tcxo,
+    /// Crystal oscillator
+    Xtal,
+}
+
+impl Default for OscillatorType {
+    fn default() -> Self {
+        OscillatorType::Tcxo
+    }
+}
+
+impl OscillatorType {
+    pub fn value(self) -> u8 {
+        match self {
+            OscillatorType::Tcxo => 0x10,
+            OscillatorType::Xtal => 0x00,
+        }
+    }
+}
+
 #[derive(Clone, Copy)]
 #[allow(dead_code)]
 pub enum RampTime {
