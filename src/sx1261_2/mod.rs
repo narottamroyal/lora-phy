@@ -561,6 +561,15 @@ where
         self.intf.write(&[&op_code_and_cal_freq], false).await
     }
 
+    async fn get_frequency_error(
+        &mut self,
+        _mdltn_params: &mut ModulationParams,
+        _apply_corrections: bool,
+    ) -> Result<i32, RadioError> {
+        // TODO: implement
+        Ok(0)
+    }
+
     async fn set_channel(&mut self, frequency_in_hz: u32) -> Result<(), RadioError> {
         debug!("channel = {}", frequency_in_hz);
         let freq_in_pll_steps = Self::convert_freq_in_hz_to_pll_step(frequency_in_hz);

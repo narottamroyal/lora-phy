@@ -390,6 +390,43 @@ where
         Ok(())
     }
 
+    async fn get_frequency_error(
+        &mut self,
+        mdltn_params: &mut ModulationParams,
+        apply_corrections: bool,
+    ) -> Result<i32, RadioError> {
+        // LoRaFeiValue is a 20-bit signed value stored across three registers
+        let mut lora_fei_value = (u32::from(self.read_register(Register::RegFreqErrorMsb).await?) & 0x0f) << 16;
+        lora_fei_value |= u32::from(self.read_register(Register::RegFreqErrorMid).await?) << 8;
+        lora_fei_value |= u32::from(self.read_register(Register::RegFreqErrorLsb).await?);
+
+        // Apply sign extension
+        if lora_fei_value & 0x80000 != 0 {
+            lora_fei_value |= 0xfff00000;
+        }
+        let lora_fei_value = lora_fei_value as i32;
+
+        // Calculate frequency error in Hz
+        const SCALING: f64 = (1 << 24) as f64 / 32e6 / 500e3;
+        let frequency_error_hz = SCALING * lora_fei_value as f64 * mdltn_params.bandwidth.value_in_hz() as f64;
+        debug!("frequency error = {} Hz", frequency_error_hz);
+
+        if apply_corrections {
+            // Correct for data rate offset due to frequency error
+            let ppm_correction = 0.95e6 * frequency_error_hz / mdltn_params.frequency_in_hz as f64;
+            let ppm_correction = ppm_correction as i8;
+            debug!("ppm correction = {}", ppm_correction);
+            self.write_register(Register::RegPpmCorrection, ppm_correction as u8, false)
+                .await?;
+
+            // Correct for the measured frequency error
+            mdltn_params.frequency_in_hz = (mdltn_params.frequency_in_hz as f64 - frequency_error_hz) as u32;
+            self.set_channel(mdltn_params.frequency_in_hz).await?;
+        }
+
+        Ok(frequency_error_hz as i32)
+    }
+
     async fn set_channel(&mut self, frequency_in_hz: u32) -> Result<(), RadioError> {
         debug!("channel = {}", frequency_in_hz);
         let frf = (frequency_in_hz as f64 / FREQUENCY_SYNTHESIZER_STEP) as u32;

@@ -331,6 +331,17 @@ where
             }
         }
     }
+
+    /// Get frequency error and optionally apply automatic frequency/PPM corrections
+    pub async fn get_frequency_error(
+        &mut self,
+        mdltn_params: &mut ModulationParams,
+        apply_corrections: bool,
+    ) -> Result<i32, RadioError> {
+        self.radio_kind
+            .get_frequency_error(mdltn_params, apply_corrections)
+            .await
+    }
 }
 
 impl<RK> AsyncRng for LoRa<RK>

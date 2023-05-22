@@ -66,6 +66,12 @@ pub trait RadioKind {
     async fn set_packet_params(&mut self, pkt_params: &PacketParams) -> Result<(), RadioError>;
     /// Set the LoRa chip to support a given communication channel frequency
     async fn calibrate_image(&mut self, frequency_in_hz: u32) -> Result<(), RadioError>;
+    /// Apply automatic frequency correction
+    async fn get_frequency_error(
+        &mut self,
+        mdltn_params: &mut ModulationParams,
+        apply_corrections: bool,
+    ) -> Result<i32, RadioError>;
     /// Set the frequency for a communication channel
     async fn set_channel(&mut self, frequency_in_hz: u32) -> Result<(), RadioError>;
     /// Set a payload for a subsequent send operation

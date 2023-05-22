@@ -85,6 +85,7 @@ pub enum Register {
     RegPayloadLength = 0x22,
     RegMaxPayloadLength = 0x23,
     RegModemConfig3 = 0x26,
+    RegPpmCorrection = 0x27,
     RegFreqErrorMsb = 0x28,
     RegFreqErrorMid = 0x29,
     RegFreqErrorLsb = 0x2a,
